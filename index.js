@@ -15,18 +15,36 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http:/
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes('*')) return true;
 
-app.use(express.json());
-app.use(cors({
+  return allowedOrigins.some(allowedOrigin => {
+    if (allowedOrigin === origin) return true;
+
+    if (allowedOrigin.startsWith('*.')) {
+      return origin.endsWith(allowedOrigin.slice(1));
+    }
+
+    return false;
+  });
+};
+const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
 
-    return callback(new Error('Not allowed by CORS'));
+    return callback(new Error(`CORS blocked origin: ${origin}`));
   },
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(express.json());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
